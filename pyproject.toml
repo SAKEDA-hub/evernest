@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "locqa"
+version = "0.1.0"
+description = "Localization QA for Flutter ARB files (Kazakh/Uzbek focus)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []  # stdlib only on purpose: easy to run in CI and on any laptop
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+locqa = "locqa.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["locqa*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

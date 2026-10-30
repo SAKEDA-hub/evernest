@@ -1,0 +1,61 @@
+# Runs locqa on every pull request that touches ARB files.
+# Expects the template at l10n/intl_ru.arb and the glossary at glossary.csv;
+# adjust ARB_DIR / TEMPLATE below for your repository layout.
+name: locqa
+
+on:
+  pull_request:
+    paths:
+      - "**/*.arb"
+      - "glossary.csv"
+
+env:
+  ARB_DIR: l10n
+  TEMPLATE: intl_ru.arb
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locqa
+        run: pip install .
+      - name: Validate and check every locale
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p locqa-reports
+          status=0
+          for f in "$ARB_DIR"/*.arb; do
+            [ "$(basename "$f")" = "$TEMPLATE" ] && continue
+            name=$(basename "$f" .arb)
+            echo "::group::$name"
+            locqa validate "$f" --source "$ARB_DIR/$TEMPLATE" || status=1
+            refs=()
+            for r in "$ARB_DIR"/*.arb; do
+              [ "$r" != "$f" ] && [ "$(basename "$r")" != "$TEMPLATE" ] && refs+=(--ref "$r")
+            done
+            locqa check --source "$ARB_DIR/$TEMPLATE" --target "$f" --glossary glossary.csv \
+              "${refs[@]}" --out "locqa-reports/$name.json" --fail-on high || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locqa-reports
+          path: locqa-reports/
+
+  gen-l10n:
+    # The real acceptance test from the brief: the files must compile with flutter gen-l10n.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: bash scripts/check_gen_l10n.sh "$ARB_DIR" "$TEMPLATE"
