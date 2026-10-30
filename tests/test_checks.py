@@ -205,6 +205,9 @@ def test_project_glossary_is_valid_and_quiet_on_clean_corpus():
 
     g = Glossary.load(Path(__file__).parent.parent / "glossary.csv")
     assert len(g) >= 20
+    # every row parsed into the right columns (an unquoted "{0,4}" once shifted them)
+    assert all(e.type in ("term", "ui", "slang", "brand") for e in g.entries)
+    assert all(e.status in ("draft", "observed", "from_brief", "verified") for e in g.entries)
     ctx = make_ctx(gl=False)
     ctx.glossary = g
     assert [f for f in engine.run(ctx) if f.issue_type == "glossary_violation"] == []

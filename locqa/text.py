@@ -91,6 +91,8 @@ def kk_stem(word: str) -> str:
     w = word.casefold()
     if len(w) >= 5 and w[-1] in "пқк":
         return w[:-1]
+    if len(w) >= 5 and w[-1] == w[-2]:
+        return w[:-1]  # loans drop a doubled consonant before suffixes: прогресс -> прогресі
     return w
 
 
