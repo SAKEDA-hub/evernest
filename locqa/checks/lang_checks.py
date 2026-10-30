@@ -44,7 +44,7 @@ CASE_RU = {
     "plural": "множественное число (-лар/-лер/-дар/-дер/-тар/-тер)",
     "ordinal": "порядковое (-ші/-шы/-інші/-ыншы)",
 }
-# Buffer noun with fixed (back-vowel) harmony: "{name} ойыншысына" = "игроку {name}".
+
 PLAYER_BUFFER = {
     "dative": "ойыншысына",
     "genitive": "ойыншысының",
@@ -76,8 +76,6 @@ def classify_suffix(letters: str) -> tuple[str | None, str | None]:
 
 def _is_case_suffix(letters: str) -> bool:
     case, suf = classify_suffix(letters)
-    # the attached letters must be the ending itself (+ at most a short possessive/case tail),
-    # not a whole word that merely starts like one
     return case is not None and len(letters) - len(suf) <= 3
 
 
@@ -109,8 +107,6 @@ def check_suffix_harmony(ctx: Context):
         if err:
             continue
         has_plural = "plural" in tgt or "selectordinal" in tgt
-        # only case/plural/ordinal endings: "{place}-орын", "{n}-күн" are the standard
-        # "number-hyphen-noun" spelling and are fine
         matches = [
             m
             for m in SUFFIX_RE.finditer(tgt)
