@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from ..context import Context
 from ..model import Finding
-from ..text import norm, replace_word, ru_stem, tokens, word_script
+from ..text import norm, ru_stem, tokens, word_script
 
 RU_STOP = frozenset(
     """
@@ -41,7 +41,7 @@ def check_glossary(ctx: Context):
             allowed = " / ".join([e.kk, *e.kk_variants])
             if forb:
                 ev = f"«{hit}» по глоссарию → «{allowed}», в переводе нежелательный вариант «{forb}»"
-                sugg = replace_word(tgt, forb, e.kk, count=1)
+                sugg = e.fix_forbidden(tgt)
                 conf, sev = 0.85, "high" if e.is_brand else "medium"
             else:
                 ev = f"в исходнике термин «{hit}», в переводе нет «{allowed}»"

@@ -70,6 +70,33 @@ def expected_ratio(ctx: Context) -> tuple[float, int]:
     return min(max(statistics.median(ratios), 1.0), 1.8), len(ratios)
 
 
+EXTREME = 3.5  # x the expected length AND +18 chars: no Kazakh rewording of a <=20-char label grows that much
+END_PUNCT = ":.!?"
+
+
+def _extreme(ctx: Context, key, src, tgt, s_plain, sl, tl, exp, r, n_samples) -> Finding | None:
+    ev = (
+        f"{tl} символов против {sl} в исходнике — в {tl / exp:.1f} раза больше ожидаемого "
+        f"(медианный коэффициент {r:.2f} по {n_samples} коротким строкам)"
+    )
+    if PAIR_PART.search(key):
+        # part of a split sentence: Kazakh may legitimately move the whole predicate here
+        # («кейс?» -> «...сатып алғыңыз келетініне сенімдісіз бе?»). Report only when the text
+        # runs on past the source's closing punctuation: «через:» -> «кейін: режимін қосу...».
+        p = s_plain.rstrip()[-1:]
+        t = ctx.plain("tgt", key, PH).rstrip()
+        if not (p and p in END_PUNCT and p in t and not t.endswith(p)):
+            return None
+        ev += f"; часть составной фразы, но текст продолжается после завершающего «{p}» исходника"
+        conf = 0.65
+    else:
+        ev += "; для короткой строки интерфейса такой рост не объясняется порядком слов"
+        conf = 0.75
+    kind, _ = ui_kind(key, ctx.description(key))
+    sev = "high" if kind == "button" else "medium"
+    return Finding(key, "length_overflow", sev, src, tgt, ev, None, conf, rule="length_extreme")
+
+
 def check_length(ctx: Context):
     r, n_samples = expected_ratio(ctx)
     for key, src, tgt in ctx.pairs():
@@ -78,10 +105,15 @@ def check_length(ctx: Context):
         if sl == 0:
             continue
         tl = _target_len(ctx, key)
-        if PAIR_PART.search(key):
-            continue  # Start/End halves of one sentence: Kazakh word order moves text between them
-        kind, reason = ui_kind(key, ctx.description(key))
         exp = sl * r
+        # fallback for strings the main rule skips (sentence parts, labels ending with «:»)
+        extreme = sl <= 20 and tl >= max(exp * EXTREME, sl + 18)
+        if PAIR_PART.search(key):
+            # Start/End halves of one sentence: Kazakh word order moves text between them
+            if extreme and (f := _extreme(ctx, key, src, tgt, s_plain, sl, tl, exp, r, n_samples)):
+                yield f
+            continue
+        kind, reason = ui_kind(key, ctx.description(key))
         weak = False
         # Kazakh UI text is routinely ~2x a terse Russian label ("Ваши призы" -> "Сіздің
         # сыйлықтарыңыз"); only clearly abnormal growth is reported.
@@ -94,6 +126,8 @@ def check_length(ctx: Context):
             weak = True
             reason = "короткая строка без точки — вероятно, элемент интерфейса"
         else:
+            if extreme and (f := _extreme(ctx, key, src, tgt, s_plain, sl, tl, exp, r, n_samples)):
+                yield f
             continue
         if tl <= limit:
             continue

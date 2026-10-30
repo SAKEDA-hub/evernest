@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from .checks import REGISTRY
 from .context import Context
-from .langs import base_locale, locale_from_filename
+from .langs import base_locale, invalid_resource_names, locale_from_filename
 from .model import SEVERITY_RANK, Finding, max_severity
 
 
@@ -35,6 +35,13 @@ def file_diagnostics(ctx: Context) -> None:
             by_name = locale_from_filename(f.path)
             if isinstance(declared, str) and by_name and base_locale(declared) != base_locale(by_name):
                 ctx.diag("warning", "locale_mismatch", f"{which}: @@locale={declared}, а по имени файла {by_name}")
+    for k in invalid_resource_names(ctx.src):
+        ctx.diag(
+            "warning", "invalid_resource_name",
+            "source: имя ключа шаблона недопустимо для gen-l10n (нужен Dart-метод [a-z$][A-Za-z0-9_$]*); "
+            "flutter gen-l10n упадёт на шаблоне",
+            k,
+        )  # fmt: skip
     extra = sorted(set(ctx.tgt) - set(ctx.src))
     for k in extra:
         ctx.diag("warning", "extra_key", "ключ есть в переводе, но отсутствует в исходнике", k)

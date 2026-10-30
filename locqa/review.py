@@ -13,7 +13,7 @@ from pathlib import Path
 
 from . import icu
 from .arb import ArbFile
-from .model import SEVERITY_RANK, Finding, max_severity
+from .model import ISSUE_TYPES, SEVERITY_RANK, Finding, max_severity
 
 COLUMNS = [
     "key", "issue_types", "severity", "confidence", "source", "target", "suggestion",
@@ -96,6 +96,17 @@ class ReviewRow:
     reviewer: str
     issue_types: list[str]
     comment: str = ""
+    severity: str = "medium"
+    confidence: float = 0.5
+    evidence: str = ""
+
+    @property
+    def reviewed(self) -> bool:
+        return self.decision != "skip" and bool(self.reviewer)
+
+    @property
+    def text(self) -> str:
+        return self.final_text if self.decision == "edit" else self.suggestion
 
 
 def load_review(path: str | Path) -> tuple[list[ReviewRow], list[str]]:
@@ -117,9 +128,66 @@ def load_review(path: str | Path) -> tuple[list[ReviewRow], list[str]]:
                     reviewer=r.get("reviewer", "").strip(),
                     issue_types=[t for t in r.get("issue_types", "").split(",") if t],
                     comment=r.get("comment", "").strip(),
+                    severity=sev if (sev := r.get("severity", "").strip()) in SEVERITY_RANK else "medium",
+                    confidence=_float(r.get("confidence"), 0.5),
+                    evidence=r.get("evidence", "").strip(),
                 )
             )
     return rows, errors
+
+
+def _float(v, default: float) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def merge_review(
+    findings: list[Finding], rows: list[ReviewRow], src: dict[str, str], tgt: dict[str, str]
+) -> tuple[list[Finding], dict]:
+    """Bring the review sheet back into the report:
+    - a reviewer's `keep` = "the string is fine, the finding is false" -> the key's findings leave
+      the report (they are counted in summary.review.rejected, not silently lost);
+    - `accept`/`edit` by a reviewer -> reviewed_by_human = true;
+    - rows the reviewer/LLM pass added for keys the tool did not flag become findings themselves,
+      reviewed_by_human only if a named reviewer accepted or edited them.
+    """
+    by_key: dict[str, list[ReviewRow]] = {}
+    for r in rows:
+        by_key.setdefault(r.key, []).append(r)
+    flagged = {f.key for f in findings}
+    out, rejected = [], []
+    for f in findings:
+        rs = by_key.get(f.key, [])
+        if any(r.reviewed and r.decision == "keep" for r in rs):
+            rejected.append(f.key)
+            continue
+        f.reviewed_by_human = f.reviewed_by_human or any(r.reviewed for r in rs)
+        out.append(f)
+    added = 0
+    for key, rs in by_key.items():
+        if key in flagged:
+            continue
+        for r in rs:
+            if r.decision == "keep" or not r.text:
+                continue
+            types = [t for t in r.issue_types if t in ISSUE_TYPES] or ["machine_translation_suspect"]
+            ev = r.evidence.removeprefix("[добавлено ревью]").strip() or r.comment or "найдено при ревью"
+            for t in types:
+                out.append(
+                    Finding(
+                        key, t, r.severity, src.get(key), tgt.get(key), f"найдено при ревью: {ev}",
+                        r.text, r.confidence, reviewed_by_human=r.reviewed, rule="review",
+                    )
+                )  # fmt: skip
+                added += 1
+    stats = {
+        "rejected_by_reviewer": len(set(rejected)),
+        "added_by_review": added,
+        "rejected_keys": sorted(set(rejected)),
+    }
+    return out, stats
 
 
 def reviewed_keys(rows: list[ReviewRow]) -> set[str]:

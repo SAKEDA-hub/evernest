@@ -58,4 +58,9 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      # DROP_INVALID_TEMPLATE_KEYS=1 checks the translations even if the template has keys that are
+      # not valid Dart getters (gen-l10n would abort on the template first). Set to 0 once the
+      # template is fixed, so that the job guards the template too.
       - run: bash scripts/check_gen_l10n.sh "$ARB_DIR" "$TEMPLATE"
+        env:
+          DROP_INVALID_TEMPLATE_KEYS: "1"
