@@ -159,7 +159,7 @@ class Glossary:
     def exact(self, source: str | None) -> str | None:
         if not source:
             return None
-        return self._exact.get(norm(source).strip(" .!?:…"))
+        return self._exact.get(norm(source).strip(" .!?:…«»\"'„“”"))
 
     def keep_tokens(self) -> set[str]:
         out: set[str] = set()

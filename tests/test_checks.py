@@ -261,3 +261,12 @@ def test_adequacy_flags_swapped_translation():
     found, _ = run({"quest_title": "Отбасы"})
     f = found.get(("quest_title", "machine_translation_suspect"))
     assert f is not None and f.confidence < 0.5 and "семь" in f.evidence
+
+
+def test_glossary_exact_ignores_quotes_and_trailing_punctuation():
+    from locqa.glossary import Glossary, GlossaryEntry
+
+    g = Glossary([GlossaryEntry(ru="магазин", kk="дүкен")])
+    for s in ("Магазин", "Магазин.", "«Магазин»", '"Магазин"', "„Магазин“"):
+        assert g.exact(s) == "дүкен", s
+    assert g.exact("Магазин закрыт") is None

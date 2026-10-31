@@ -144,7 +144,11 @@ def _float(v, default: float) -> float:
 
 
 def merge_review(
-    findings: list[Finding], rows: list[ReviewRow], src: dict[str, str], tgt: dict[str, str]
+    findings: list[Finding],
+    rows: list[ReviewRow],
+    src: dict[str, str],
+    tgt: dict[str, str],
+    signed_off: set[str] | None = None,
 ) -> tuple[list[Finding], dict]:
     """Bring the review sheet back into the report:
     - a reviewer's `keep` = "the string is fine, the finding is false" -> the key's findings leave
@@ -152,7 +156,10 @@ def merge_review(
     - `accept`/`edit` by a reviewer -> reviewed_by_human = true;
     - rows the reviewer/LLM pass added for keys the tool did not flag become findings themselves,
       reviewed_by_human only if a named reviewer accepted or edited them.
+    `signed_off` (from `reviewed_keys` with the target) narrows "reviewed" to rows `apply`
+    actually accepted: an edit rejected for broken placeholders leaves the string unfixed.
     """
+    ok = (lambda r: r.reviewed and (signed_off is None or r.key in signed_off))
     by_key: dict[str, list[ReviewRow]] = {}
     for r in rows:
         by_key.setdefault(r.key, []).append(r)
@@ -163,7 +170,7 @@ def merge_review(
         if any(r.reviewed and r.decision == "keep" for r in rs):
             rejected.append(f.key)
             continue
-        f.reviewed_by_human = f.reviewed_by_human or any(r.reviewed for r in rs)
+        f.reviewed_by_human = f.reviewed_by_human or any(ok(r) for r in rs)
         out.append(f)
     added = 0
     for key, rs in by_key.items():
@@ -178,7 +185,7 @@ def merge_review(
                 out.append(
                     Finding(
                         key, t, r.severity, src.get(key), tgt.get(key), f"найдено при ревью: {ev}",
-                        r.text, r.confidence, reviewed_by_human=r.reviewed, rule="review",
+                        r.text, r.confidence, reviewed_by_human=ok(r), rule="review",
                     )
                 )  # fmt: skip
                 added += 1
@@ -189,9 +196,18 @@ def merge_review(
     }
     return out, stats
 
-
-def reviewed_keys(rows: list[ReviewRow]) -> set[str]:
-    return {r.key for r in rows if r.decision != "skip" and r.reviewer}
+def reviewed_keys(
+    rows: list[ReviewRow],
+    target: ArbFile | None = None,
+    source: ArbFile | None = None,
+    escaping: bool = False,
+) -> set[str]:
+    """Keys a human signed off. With `target`, only rows that `apply` would actually accept
+    count: a rejected edit (e.g. broken placeholders) leaves the string unfixed."""
+    if target is None:
+        return {r.key for r in rows if r.decision != "skip" and r.reviewer}
+    res = apply_review(target, rows, source, escaping)
+    return {c["key"] for c in res.changes if c["reviewed_by_human"]} | set(res.kept)
 
 
 @dataclass

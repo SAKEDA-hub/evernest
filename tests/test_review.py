@@ -74,6 +74,8 @@ def test_full_review_cycle(files):
     main(["check", "--source", str(files["ru"]), "--target", str(kk), "--out", str(rep2), "--html", "-", "--review", str(review)])
     flags = {f["key"]: f["reviewed_by_human"] for f in json.loads(rep2.read_text(encoding="utf-8"))["findings"]}
     assert flags["level_up"] is True and flags["error_unknown"] is False
+    # edit rejected by apply (broken placeholders) leaves the string unfixed -> not "reviewed"
+    assert flags["garage_rent_button"] is False
 
 
 def test_apply_keeps_existing_metadata(files):

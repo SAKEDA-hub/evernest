@@ -25,7 +25,7 @@ from .glossary import Glossary
 from .langs import base_locale, invalid_resource_names, locale_from_filename
 from .model import ISSUE_TYPES, SEVERITY_RANK
 from .report import build_report, load_findings, write_html, write_json
-from .review import apply_review, export_review, load_review, merge_review
+from .review import apply_review, export_review, load_review, merge_review, reviewed_keys
 
 
 def _err(msg: str) -> None:
@@ -105,7 +105,8 @@ def cmd_check(a) -> int:
         rows, errors = load_review(a.review)
         for e in errors:
             _err(e)
-        findings, review_stats = merge_review(findings, rows, ctx.src, ctx.tgt)
+        done = reviewed_keys(rows, ctx.target, ctx.source, ctx.options.escaping)
+        findings, review_stats = merge_review(findings, rows, ctx.src, ctx.tgt, signed_off=done)
         if a.only:
             findings = [f for f in findings if f.issue_type in wanted]
 
