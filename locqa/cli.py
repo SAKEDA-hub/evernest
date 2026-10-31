@@ -104,7 +104,7 @@ def cmd_check(a) -> int:
         rows, errors = load_review(a.review)
         for e in errors:
             _err(e)
-        done = reviewed_keys(rows)
+        done = reviewed_keys(rows, ctx.target, ctx.source, ctx.options.escaping)
         for f in findings:
             f.reviewed_by_human = f.reviewed_by_human or f.key in done
 

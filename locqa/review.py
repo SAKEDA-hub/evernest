@@ -122,8 +122,18 @@ def load_review(path: str | Path) -> tuple[list[ReviewRow], list[str]]:
     return rows, errors
 
 
-def reviewed_keys(rows: list[ReviewRow]) -> set[str]:
-    return {r.key for r in rows if r.decision != "skip" and r.reviewer}
+def reviewed_keys(
+    rows: list[ReviewRow],
+    target: ArbFile | None = None,
+    source: ArbFile | None = None,
+    escaping: bool = False,
+) -> set[str]:
+    """Keys a human signed off. With `target`, only rows that `apply` would actually accept
+    count: a rejected edit (e.g. broken placeholders) leaves the string unfixed."""
+    if target is None:
+        return {r.key for r in rows if r.decision != "skip" and r.reviewer}
+    res = apply_review(target, rows, source, escaping)
+    return {c["key"] for c in res.changes if c["reviewed_by_human"]} | set(res.kept)
 
 
 @dataclass
