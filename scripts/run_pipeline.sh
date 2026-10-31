@@ -29,7 +29,7 @@ case "${1:-detect}" in
     locqa check --source "$DATA/intl_ru.arb" --target "$DATA/intl_kk.arb" --glossary "$GLOSSARY" \
       "${refs[@]}" "${extra[@]}" --out "$OUT/report_kk.json"
     if [ -f "$DATA/intl_uz.arb" ]; then
-      locqa check --source "$DATA/intl_ru.arb" --target "$DATA/intl_uz.arb" \
+      locqa check --source "$DATA/intl_ru.arb" --target "$DATA/intl_uz.arb" --glossary "$GLOSSARY" \
         --ref "$DATA/intl_kk.arb" "${refs[@]}" --out "$OUT/report_uz.json" || true
     fi
     locqa mine-terms --source "$DATA/intl_ru.arb" --target "$DATA/intl_kk.arb" --out "$OUT/term_candidates.csv"

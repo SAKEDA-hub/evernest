@@ -131,8 +131,10 @@ def glossary() -> Glossary:
     )
 
 
-def make_ctx(kk_overrides: dict | None = None, *, gl: bool = True, refs: bool = False, **opts) -> Context:
-    src = ArbFile.from_dict(ru_data(), "intl_ru.arb")
+def make_ctx(
+    kk_overrides: dict | None = None, *, gl: bool = True, refs: bool = False, src_overrides: dict | None = None, **opts
+) -> Context:
+    src = ArbFile.from_dict({**ru_data(), **(src_overrides or {})}, "intl_ru.arb")
     tgt = ArbFile.from_dict(kk_data(**(kk_overrides or {})), "intl_kk.arb")
     r = {"uz": UZ, "en": EN} if refs else {}
     return Context(src, tgt, glossary() if gl else None, r, Options(**opts))

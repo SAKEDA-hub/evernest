@@ -74,6 +74,8 @@ def test_full_review_cycle(files):
     main(["check", "--source", str(files["ru"]), "--target", str(kk), "--out", str(rep2), "--html", "-", "--review", str(review)])
     flags = {f["key"]: f["reviewed_by_human"] for f in json.loads(rep2.read_text(encoding="utf-8"))["findings"]}
     assert flags["level_up"] is True and flags["error_unknown"] is False
+    # edit rejected by apply (broken placeholders) leaves the string unfixed -> not "reviewed"
+    assert flags["garage_rent_button"] is False
 
 
 def test_apply_keeps_existing_metadata(files):
@@ -159,7 +161,7 @@ def test_export_review_adds_rows_found_by_reviewer(tmp_path):
 
     out = tmp_path / "r.csv"
     f = Finding("a", "orthography", "low", "x", "y", "ev", None, 0.9)
-    extra = {"b": {"suggestion": "Неке", "source": "Брак", "target": "Заңға бағынушылық", "comment": "смысл"}}
+    extra = {"b": {"suggestion": "Неке", "source": "Брак", "target": "Тәртіп сақтау", "comment": "смысл"}}
     assert export_review([f], out, extra) == 2
     rows = {r["key"]: r for r in csv.DictReader(open(out, encoding="utf-8-sig"))}
     assert rows["b"]["issue_types"] == "machine_translation_suspect" and rows["b"]["suggestion"] == "Неке"

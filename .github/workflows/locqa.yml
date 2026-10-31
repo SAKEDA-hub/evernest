@@ -1,6 +1,8 @@
 # Runs locqa on every pull request that touches ARB files.
 # Expects the template at l10n/intl_ru.arb and the glossary at glossary.csv;
 # adjust ARB_DIR / TEMPLATE below for your repository layout.
+# In this tool repository the partner's ARB files are NOT committed (data agreement), so both
+# jobs detect that and skip with a notice instead of failing.
 name: locqa
 
 on:
@@ -12,21 +14,37 @@ on:
 env:
   ARB_DIR: l10n
   TEMPLATE: intl_ru.arb
+  # locales that have a curated column in glossary.csv (`en` there is reference-only)
+  GLOSSARY_LOCALES: "kk uz"
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Look for ARB files
+        id: arb
+        shell: bash
+        run: |
+          if [ -f "$ARB_DIR/$TEMPLATE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$ARB_DIR/$TEMPLATE not found: nothing to check (set ARB_DIR/TEMPLATE for your layout)"
+          fi
       - uses: actions/setup-python@v5
+        if: steps.arb.outputs.present == 'true'
         with:
           python-version: "3.12"
       - name: Install locqa
+        if: steps.arb.outputs.present == 'true'
         run: pip install .
       - name: Validate and check every locale
+        if: steps.arb.outputs.present == 'true'
         shell: bash
         run: |
           set -o pipefail
+          shopt -s nullglob
           mkdir -p locqa-reports
           status=0
           for f in "$ARB_DIR"/*.arb; do
@@ -38,13 +56,16 @@ jobs:
             for r in "$ARB_DIR"/*.arb; do
               [ "$r" != "$f" ] && [ "$(basename "$r")" != "$TEMPLATE" ] && refs+=(--ref "$r")
             done
-            locqa check --source "$ARB_DIR/$TEMPLATE" --target "$f" --glossary glossary.csv \
+            gloss=()
+            loc=${name##*_}
+            [ -f glossary.csv ] && [[ " $GLOSSARY_LOCALES " == *" $loc "* ]] && gloss=(--glossary glossary.csv)
+            locqa check --source "$ARB_DIR/$TEMPLATE" --target "$f" "${gloss[@]}" \
               "${refs[@]}" --out "locqa-reports/$name.json" --fail-on high || status=1
             echo "::endgroup::"
           done
           exit $status
       - name: Upload reports
-        if: always()
+        if: always() && steps.arb.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: locqa-reports
@@ -55,7 +76,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Look for ARB files
+        id: arb
+        shell: bash
+        run: |
+          if [ -f "$ARB_DIR/$TEMPLATE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$ARB_DIR/$TEMPLATE not found: gen-l10n check skipped"
+          fi
       - uses: subosito/flutter-action@v2
+        if: steps.arb.outputs.present == 'true'
         with:
           channel: stable
+      # DROP_INVALID_TEMPLATE_KEYS=1 checks the translations even if the template has keys that are
+      # not valid Dart getters (gen-l10n would abort on the template first). Set to 0 once the
+      # template is fixed, so that the job guards the template too.
       - run: bash scripts/check_gen_l10n.sh "$ARB_DIR" "$TEMPLATE"
+        if: steps.arb.outputs.present == 'true'
+        env:
+          DROP_INVALID_TEMPLATE_KEYS: "1"

@@ -1,7 +1,9 @@
 """Glossary loading and term matching.
 
 CSV columns (header names case-insensitive; only ru and kk are required):
-  ru, kk, en, note|comment, kk_variants, kk_forbidden, ru_regex, type, status
+  ru, kk, en, comment|note, kk_variants, kk_forbidden, [uz, uz_variants, ...], ru_regex, type, status
+  * a target cell may list alternatives as "car / vehicle" (first = canonical)
+  * `en` is a reference column for the Kazakh glossary; it is checked only if the target is en
   * kk_variants / kk_forbidden: alternatives separated by "|" or ";"
   * ru_regex: overrides the auto-built Russian pattern (use for ambiguous stems,
     e.g. семья vs семь)
@@ -16,7 +18,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .text import kk_stem, norm, ru_stem, tokens, word_script
+from .text import kk_stem, match_case, norm, ru_stem, tokens, word_script
 
 
 def _split(v: str | None) -> list[str]:
@@ -43,6 +45,10 @@ def _tgt_pattern(term: str) -> re.Pattern:
         else:
             parts.append(re.escape(w) + r"\w*")
     return re.compile(r"(?<!\w)" + r"\s+".join(parts), re.IGNORECASE)
+
+
+VOICING = {"п": "б", "қ": "ғ", "к": "г"}
+KK_VOWELS = frozenset("аәеиоөұүыіэюя")
 
 
 @dataclass
@@ -95,6 +101,24 @@ class GlossaryEntry:
                 return m.group(0)
         return None
 
+    def fix_forbidden(self, text: str) -> str | None:
+        """Replace the first forbidden form with the canonical one, keeping the inflection:
+        «ойнаушыларды» -> «ойыншыларды» (not «ойыншы»)."""
+        for forb, p in self._forb:
+            m = p.search(text)
+            if not m:
+                continue
+            word = m.group(0)
+            suffix = ""
+            if len(forb.split()) == 1 and len(self.kk.split()) == 1:
+                suffix = word[len(kk_stem(forb)) :]
+            new = self.kk
+            if suffix and new[-1:].casefold() in VOICING and suffix[:1].casefold() in KK_VOWELS:
+                new = new[:-1] + VOICING[new[-1].casefold()]  # кітап + ы -> кітабы
+            new = match_case(word, new + suffix)
+            return text[: m.start()] + new + text[m.end() :]
+        return None
+
 
 class Glossary:
     def __init__(self, entries: list[GlossaryEntry] | None = None):
@@ -117,6 +141,9 @@ class Glossary:
                 if not ru or ru.startswith("#"):
                     continue
                 tgt = row.get(target_column) or (row.get("kk", "") if target_column == "kk" else "")
+                # "car / vehicle": a slash lists alternatives; the first one is canonical
+                alts = [t.strip() for t in tgt.split(" / ") if t.strip()]
+                tgt = alts[0] if alts else ""
                 variants_col = f"{target_column}_variants"
                 forbidden_col = f"{target_column}_forbidden"
                 entries.append(
@@ -125,7 +152,7 @@ class Glossary:
                         kk=tgt,
                         en=row.get("en", ""),
                         note=row.get("note") or row.get("comment", ""),
-                        kk_variants=_split(row.get(variants_col)),
+                        kk_variants=alts[1:] + _split(row.get(variants_col)),
                         kk_forbidden=_split(row.get(forbidden_col)),
                         ru_regex=row.get("ru_regex") or None,
                         type=(row.get("type") or "term").lower(),
@@ -137,7 +164,7 @@ class Glossary:
     def exact(self, source: str | None) -> str | None:
         if not source:
             return None
-        return self._exact.get(norm(source).strip(" .!?:…"))
+        return self._exact.get(norm(source).strip(" .!?:…«»\"'„“”"))
 
     def keep_tokens(self) -> set[str]:
         out: set[str] = set()

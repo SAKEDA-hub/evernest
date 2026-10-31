@@ -3,8 +3,8 @@
 Every key is a sentence pair, so across ~5k pairs a Russian stem and its Kazakh rendering
 co-occur far more often than chance (Dice coefficient). For a short string, a Kazakh word
 that in the rest of the file translates something else and is unrelated to every word of
-this source suggests a wrong or swapped translation («Брак» → «Заңға бағынушылық»,
-«Цвет фар» → «Бағдаршамның түсі»). Statistics are computed leave-one-out so a string
+this source suggests a wrong or swapped translation (e.g. a word that elsewhere
+translates a different Russian word). Statistics are computed leave-one-out so a string
 cannot vouch for itself.
 """
 from __future__ import annotations

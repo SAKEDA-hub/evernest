@@ -11,6 +11,15 @@ ISO639_1 = frozenset(
     "si sk sl sq sr sv sw ta te tg th tk tl tr tt ug uk ur uz vi zh".split()
 )
 
+# gen-l10n `_isValidGetterAndMethodName`: template keys become Dart getters (no leading
+# capital, digit or underscore; only letters, digits, `_`, `$`). gen-l10n aborts otherwise.
+DART_GETTER = re.compile(r"[a-z$][A-Za-z0-9_$]*")
+
+
+def invalid_resource_names(keys) -> list[str]:
+    return [k for k in keys if not DART_GETTER.fullmatch(k)]
+
+
 # CLDR cardinal plural categories ("other" is always implied).
 PLURAL_CATEGORIES: dict[str, frozenset[str]] = {
     "ru": frozenset({"one", "few", "many", "other"}),

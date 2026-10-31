@@ -166,7 +166,7 @@ def check_icu(ctx: Context):
                 (m,), (x,) = missing, extra
                 sugg = re.sub(r"\{\s*" + re.escape(x) + r"\s*([,}])", "{" + m + r"\1", tgt)
             elif missing and not extra:
-                # braces lost: "Жаңарады: time" -> "Жаңарады: {time}"
+                # braces lost: "Деңгей: level" -> "Деңгей: {level}"
                 fixed = tgt
                 for m in missing:
                     fixed = re.sub(r"(?<![\w{])" + re.escape(m) + r"(?![\w}])", "{" + m + "}", fixed, count=1)

@@ -22,10 +22,10 @@ from .arb import ArbError, ArbFile
 from .checks.terms import mine_terms
 from .context import Context, Options
 from .glossary import Glossary
-from .langs import base_locale
+from .langs import base_locale, invalid_resource_names, locale_from_filename
 from .model import ISSUE_TYPES, SEVERITY_RANK
 from .report import build_report, load_findings, write_html, write_json
-from .review import apply_review, export_review, load_review, reviewed_keys
+from .review import apply_review, export_review, load_review, merge_review, reviewed_keys
 
 
 def _err(msg: str) -> None:
@@ -100,17 +100,21 @@ def cmd_check(a) -> int:
     if a.only:
         wanted = set(a.only.split(","))
         findings = [f for f in findings if f.issue_type in wanted]
+    review_stats = None
     if a.review:
         rows, errors = load_review(a.review)
         for e in errors:
             _err(e)
-        done = reviewed_keys(rows)
-        for f in findings:
-            f.reviewed_by_human = f.reviewed_by_human or f.key in done
+        done = reviewed_keys(rows, ctx.target, ctx.source, ctx.options.escaping)
+        findings, review_stats = merge_review(findings, rows, ctx.src, ctx.tgt, signed_off=done)
+        if a.only:
+            findings = [f for f in findings if f.issue_type in wanted]
 
     threshold = 0.0 if a.all else a.min_confidence
     kept, dropped = engine.split_by_confidence(findings, threshold)
     report = build_report(ctx, kept, dropped, threshold, llm_stats)
+    if review_stats is not None:
+        report["summary"]["review"] = review_stats
     write_json(report, a.out, flat=a.flat)
     html_path = a.html or str(Path(a.out).with_suffix(".html"))
     if html_path != "-":
@@ -133,14 +137,32 @@ def cmd_check(a) -> int:
 
 
 def cmd_validate(a) -> int:
-    """Pre-flight for `flutter gen-l10n`: JSON, duplicates, ICU syntax, placeholder parity."""
+    """Pre-flight for `flutter gen-l10n`: JSON, duplicates, ICU syntax, placeholder parity,
+    template resource names, @@locale vs file name."""
     problems: list[str] = []
     try:
         arb = ArbFile.load(a.file)
+        source_arb = ArbFile.load(a.source) if a.source else None
     except ArbError as e:
         _err(str(e))
         return 1
-    src = ArbFile.load(a.source).messages() if a.source else {}
+    src = source_arb.messages() if source_arb else {}
+    # gen-l10n aborts on the template's resource names before looking at any translation
+    template = source_arb or arb
+    bad_names = invalid_resource_names(template.messages())
+    if bad_names:
+        msg = (
+            f"имена ключей шаблона недопустимы для gen-l10n (должны быть Dart-методами: "
+            f"[a-z$][A-Za-z0-9_$]*): {', '.join(bad_names[:10])}"
+        )
+        if source_arb is None:
+            problems.append(msg)
+        else:
+            # not the target's fault, but `flutter gen-l10n` will still fail on this set of files
+            print(f"предупреждение (шаблон {a.source}): {msg}. gen-l10n упадёт на шаблоне до проверки перевода")
+    declared, by_name = arb.data.get("@@locale"), locale_from_filename(Path(a.file).name)
+    if isinstance(declared, str) and by_name and declared.replace("-", "_") != by_name.replace("-", "_"):
+        problems.append(f"@@locale={declared} не совпадает с локалью из имени файла ({by_name}): gen-l10n откажет")
     dups = sorted(set(arb.duplicates) - {"@@comment"})
     if dups:
         # JSON decoders (incl. Dart's) keep the last value, so this does not break gen-l10n

@@ -310,7 +310,8 @@ RU_FUNC = frozenset(
 )  # excludes Kazakh homographs: да не он у о мен
 RU_MORPH = re.compile(
     r"(ться|тся|ость|ости|ение|ения|ению|анием|ание|ания|анию|ный|ная|ное|ные|ного|ному|ными|"
-    r"ешь|ают|яют|ировать|ировал|ованный|ено|ано|ский|цкий|ские|ская|ское|ского)$"
+    r"ешь|ают|яют|ировать|ировал|ованный|ено|ано|ский|цкий|ские|ская|ское|ского|"
+    r"ать|ять|еть|ить|уть|ыть)$"  # infinitives: Kazakh has no native words in -ь
 )
 UZ_LAT_WORDS = frozenset(
     "va uchun bilan emas ham yoki qilish kerak mumkin yangi barcha hech tasdiqlash bekor "
@@ -323,6 +324,22 @@ ES_PT_WORDS = frozenset(
     "ser será sera aplicativo perfil juego jogo".split()
 )
 UZ_APOS = re.compile(r"(?i)\b\w*[og][ʻ'’‘`]\w*")
+# Wrong-sense dictionary picks typical of machine translation in game UI: the Russian word has
+# several meanings and MT chose the one that makes no sense in a game. Fires only when the Russian
+# trigger is in the SOURCE and the wrong sense is in the TARGET, so the Kazakh word alone
+# («іс», «жер») is never flagged. (ru regex, kk regex, explanation, correct form, confidence)
+MT_FALSE_FRIENDS = [
+    (r"\bставк", r"\bтігіс", "«ставка» переведена как «тігіс» (шов); в разделе это системный выбор — решает носитель", "бәс / тігім", 0.6),
+    (r"\bкейс", r"(?<!\w)іс(?!\w)|\bісті\b|\bістер", "«кейс» (лутбокс) переведён как «іс» (дело)", "кейс", 0.8),
+    (r"\bинвентар", r"\bинвентаризац|\bтүгенде", "«инвентарь» переведён как «инвентаризация/түгендеу»", "инвентарь", 0.8),
+    (r"\bперсонаж", r"\bтаңба", "«персонаж» переведён как «таңба» (символ)", "кейіпкер", 0.8),
+    (r"\bразрешени", r"\bшешім", "«разрешение» (экрана, текстур) переведено как «шешім» (решение)", "ажыратымдылық", 0.8),
+    (r"\bотмен", r"\bболдыру\b", "«отменить» переведено как «болдыру» (сделать бывшим), нужно отрицание", "болдырмау", 0.8),
+    (r"\bзель", r"(?<!\w)жер(?!\w)", "«зелья» переведены как «жер» (земля)", "сусын / эликсир", 0.8),
+    (r"\bфар\b|\bфар[аыу]", r"\bбағдаршам", "«фары» переведены как «бағдаршам» (светофор)", "фара", 0.8),
+]
+MT_FALSE_FRIENDS = [(re.compile(r, re.I), re.compile(k, re.I), why, fix, c) for r, k, why, fix, c in MT_FALSE_FRIENDS]
+
 CALQUES = [
     (re.compile(r"(?i)болып табылады"), "«болып табылады» — книжная калька «является» в UI"),
     (re.compile(r"(?i)жүзеге асыр"), "«жүзеге асыру» — калька «осуществить»"),
@@ -339,9 +356,9 @@ def _ref_hit(ctx: Context, key: str, tgt: str, src: str) -> str | None:
     if not hits:
         return None
     if ctx.looks_native(ctx.plain("tgt", key, " ")):
-        return None  # shared brand + native words ("MIDAS CREW ЖИНАҒЫ")
+        return None  # shared brand + native words ("ALPHA CLUB ЖИНАҒЫ")
     if len(hits) >= 2 and len(ctx.refs) >= 2:
-        # identical in every reference language: an untranslatable name ("SUMMER RUSH"), not a language slip
+        # identical in every reference language: an untranslatable name ("NEON CUP"), not a language slip
         return None
     if ctx.target_script == dominant_script(tgt):
         # same alphabet as the reference (uz vs en): names, units, "OK" coincide legitimately;
@@ -378,7 +395,7 @@ def _wrong_language(ctx: Context, key: str, src: str, tgt: str) -> tuple[str, fl
             if sum(1 for w in lw if w in ES_PT_WORDS) >= 2:
                 return "es/pt", 0.85, "испанский/португальский текст вместо казахского"
             if len(words) <= 3 and all(w[:1].isupper() for w in words):
-                return None  # event/brand name kept in Latin ("SUMMER RUSH", "Grand Arena")
+                return None  # event/brand name kept in Latin ("NEON CUP", "Grand Arena")
             return "lat", 0.55, "латиница вместо кириллицы при кириллическом исходнике"
         if not ctx.looks_native(text) and cyr >= 2:
             uz_hits = [w for w in lw if w in UZ_CYR_WORDS]
@@ -430,17 +447,22 @@ def check_mt_heuristics(ctx: Context):
         return
     for key, src, tgt in ctx.pairs():
         text = ctx.plain("tgt", key, " ")
-        if not ctx.looks_native(text):
+        reasons: list[tuple[str, float]] = []
+        for ru_re, kk_re, why, fix, conf in MT_FALSE_FRIENDS:  # Kazakh-only words: safe without looks_native
+            if ru_re.search(src) and kk_re.search(text):
+                reasons.append((f"неверное значение слова, типичное для машинного перевода: {why}; верно: «{fix}»", conf))
+        if not reasons and not ctx.looks_native(text):
             continue  # not Kazakh text at all: wrong_language/same_as_source territory
         words = tokens(text)
-        reasons: list[tuple[str, float]] = []
         ru_func = [w for w in words if w.casefold() in RU_FUNC]
         if ru_func:
             reasons.append((f"русские служебные слова в казахском тексте: {', '.join(ru_func[:3])}", 0.75))
+        src_words = set(tokens(ctx.plain("src", key, " ")))
         ru_forms = [
             w for w in words
             if word_script(w) == "cyr" and len(w) >= 5 and not any(c in KK_SPECIFIC for c in w)
             and w.casefold() not in ctx.keep_tokens and RU_MORPH.search(w.casefold())
+            and not (w[:1].isupper() and w in src_words)  # proper name copied from source: «Петровский»
         ]  # fmt: skip
         if ru_forms:
             reasons.append((f"русская словоформа без перевода: {', '.join(ru_forms[:3])}", 0.7))
