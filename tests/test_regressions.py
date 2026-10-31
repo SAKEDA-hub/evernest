@@ -131,3 +131,11 @@ def test_length_extreme_growth_in_sentence_parts():
     f = found[("timerAfterPrefix", "length_overflow")]
     assert f.rule == "length_extreme" and "после завершающего «:»" in f.evidence
     assert ("confirmBuyEnd", "length_overflow") not in found
+
+
+def test_translit_dotted_capital_i():
+    from locqa.translit import translit_kk
+
+    # 2021 alphabet: И/Й -> İ/i, І -> I/ı; upper И must not collapse into upper І
+    assert translit_kk("Иә, Ізде") == "İä, Izde"
+    assert translit_kk("ШЫҒУ") == "ŞYĞU"

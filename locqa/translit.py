@@ -21,6 +21,10 @@ KK_LATIN_2021 = {
     "ы": "y", "і": "ı", "ь": "", "э": "e", "ю": "iu", "я": "ia",
 }  # fmt: skip
 
+# Turkish-style dotted/dotless pair: и/й -> i, upper İ; і -> ı, upper I (str.upper("i") would give
+# "I" and merge И with І). Verified against the April 2021 table; ч -> "ch" is NOT verified.
+UPPER = {"i": "İ", "ı": "I"}
+
 _table = dict(KK_LATIN_2021)
 
 
@@ -35,7 +39,10 @@ def translit_kk(text: str) -> str:
         low = ch.lower()
         if low in _table:
             rep = _table[low]
-            out.append(rep[:1].upper() + rep[1:] if ch != low and rep else rep)
+            if ch != low and rep:
+                head = UPPER.get(rep[:1], rep[:1].upper())
+                rep = head + rep[1:]
+            out.append(rep)
         else:
             out.append(ch)
     return "".join(out)

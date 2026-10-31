@@ -1,7 +1,9 @@
 """Glossary loading and term matching.
 
 CSV columns (header names case-insensitive; only ru and kk are required):
-  ru, kk, en, note|comment, kk_variants, kk_forbidden, ru_regex, type, status
+  ru, kk, en, comment|note, kk_variants, kk_forbidden, [uz, uz_variants, ...], ru_regex, type, status
+  * a target cell may list alternatives as "car / vehicle" (first = canonical)
+  * `en` is a reference column for the Kazakh glossary; it is checked only if the target is en
   * kk_variants / kk_forbidden: alternatives separated by "|" or ";"
   * ru_regex: overrides the auto-built Russian pattern (use for ambiguous stems,
     e.g. семья vs семь)
@@ -139,6 +141,9 @@ class Glossary:
                 if not ru or ru.startswith("#"):
                     continue
                 tgt = row.get(target_column) or (row.get("kk", "") if target_column == "kk" else "")
+                # "car / vehicle": a slash lists alternatives; the first one is canonical
+                alts = [t.strip() for t in tgt.split(" / ") if t.strip()]
+                tgt = alts[0] if alts else ""
                 variants_col = f"{target_column}_variants"
                 forbidden_col = f"{target_column}_forbidden"
                 entries.append(
@@ -147,7 +152,7 @@ class Glossary:
                         kk=tgt,
                         en=row.get("en", ""),
                         note=row.get("note") or row.get("comment", ""),
-                        kk_variants=_split(row.get(variants_col)),
+                        kk_variants=alts[1:] + _split(row.get(variants_col)),
                         kk_forbidden=_split(row.get(forbidden_col)),
                         ru_regex=row.get("ru_regex") or None,
                         type=(row.get("type") or "term").lower(),
