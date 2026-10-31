@@ -245,7 +245,7 @@ def test_number_hyphen_noun_is_not_a_suffix():
 
 
 def test_latin_event_names_and_portuguese():
-    found, _ = run({"shop_title": "SUMMER RUSH", "logout_confirm": "Por favor, abra o aplicativo novamente"})
+    found, _ = run({"shop_title": "NEON CUP", "logout_confirm": "Por favor, abra o aplicativo novamente"})
     assert ("shop_title", "wrong_language") not in found
     assert found[("logout_confirm", "wrong_language")].rule == "script_markers:es/pt"
 

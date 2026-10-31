@@ -4,7 +4,8 @@
 # Requires Flutter on PATH. Exit code is gen-l10n's.
 #
 # DROP_INVALID_TEMPLATE_KEYS=1 — gen-l10n aborts on template keys that are not valid Dart
-# getter names (e.g. "UNeedHelp", "inventoryEquipped@description" in the Grand Mobile handout)
+# getter names (e.g. a key starting with a capital letter or containing "@"; the Grand Mobile handout
+# template has such keys)
 # before it looks at any translation. With this flag such keys (and their @metadata) are removed
 # from the temporary copies of ALL files, and the list is printed, so the translations can still
 # be compiled. The originals are never modified. The template problem itself must be fixed upstream.

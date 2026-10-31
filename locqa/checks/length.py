@@ -82,7 +82,7 @@ def _extreme(ctx: Context, key, src, tgt, s_plain, sl, tl, exp, r, n_samples) ->
     if PAIR_PART.search(key):
         # part of a split sentence: Kazakh may legitimately move the whole predicate here
         # («кейс?» -> «...сатып алғыңыз келетініне сенімдісіз бе?»). Report only when the text
-        # runs on past the source's closing punctuation: «через:» -> «кейін: режимін қосу...».
+        # runs on past the source's closing punctuation: «через:» -> «кейін: толығырақ білу үшін басыңыз».
         p = s_plain.rstrip()[-1:]
         t = ctx.plain("tgt", key, PH).rstrip()
         if not (p and p in END_PUNCT and p in t and not t.endswith(p)):
@@ -115,7 +115,7 @@ def check_length(ctx: Context):
             continue
         kind, reason = ui_kind(key, ctx.description(key))
         weak = False
-        # Kazakh UI text is routinely ~2x a terse Russian label ("Ваши призы" -> "Сіздің
+        # Kazakh UI text is routinely ~2x a terse Russian label ("Мои призы" -> "Менің
         # сыйлықтарыңыз"); only clearly abnormal growth is reported.
         if kind == "button":
             limit = max(exp * 2.0, sl + 10)

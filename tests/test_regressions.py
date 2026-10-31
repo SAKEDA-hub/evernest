@@ -14,20 +14,20 @@ from locqa.langs import invalid_resource_names
 
 
 def test_invalid_resource_names_mirror_gen_l10n():
-    ok = ["shop_title", "launcherV2Title", "a1", "$x", "tune_buy_neon"]
-    bad = ["UNeedHelp", "_private", "1st", "inventoryEquipped@description", "кнопка"]
+    ok = ["shop_title", "launcherV2Title", "a1", "$x", "paint_color"]
+    bad = ["HelpCenter", "_private", "1st", "itemWorn@note", "кнопка"]
     assert invalid_resource_names(ok + bad) == bad
 
 
 def test_validate_reports_template_names(files, capsys):
-    ru = files["write"]("intl_ru.arb", {**ru_data(), "UNeedHelp": "Помощь"})
+    ru = files["write"]("intl_ru.arb", {**ru_data(), "HelpCenter": "Помощь"})
     # validating the template itself: gen-l10n would abort -> failure
     assert main(["validate", str(ru)]) == 1
-    assert "UNeedHelp" in capsys.readouterr().out
+    assert "HelpCenter" in capsys.readouterr().out
     # validating a translation against it: warning only, the target is not at fault
     assert main(["validate", str(files["kk"]), "--source", str(ru)]) == 0
     out = capsys.readouterr().out
-    assert "предупреждение (шаблон" in out and "UNeedHelp" in out
+    assert "предупреждение (шаблон" in out and "HelpCenter" in out
 
 
 def test_validate_locale_mismatch_fails(files):
@@ -36,11 +36,11 @@ def test_validate_locale_mismatch_fails(files):
 
 
 def test_check_reports_invalid_template_name_as_diagnostic(files):
-    ru = files["write"]("intl_ru.arb", {**ru_data(), "TowConfirmDesc": "Эвакуировать?"})
+    ru = files["write"]("intl_ru.arb", {**ru_data(), "CarParkTitle": "Парковка"})
     out = files["dir"] / "r.json"
     assert main(["check", "--source", str(ru), "--target", str(files["kk"]), "--out", str(out), "--html", "-"]) == 0
     diags = json.loads(out.read_text(encoding="utf-8"))["diagnostics"]
-    assert any(d["code"] == "invalid_resource_name" and d["key"] == "TowConfirmDesc" for d in diags)
+    assert any(d["code"] == "invalid_resource_name" and d["key"] == "CarParkTitle" for d in diags)
 
 
 # --- detectors -------------------------------------------------------------------------
@@ -64,8 +64,8 @@ def test_mt_false_friend_needs_source_trigger():
 
 
 def test_mt_heuristics_skip_proper_names_copied_from_source():
-    over = {"quest_reward": "Вишневский берген тапсырма үшін сыйлық"}
-    src = {"quest_reward": "Награда за задание от Вишневский"}
+    over = {"quest_reward": "Петровский берген тапсырма үшін сыйлық"}
+    src = {"quest_reward": "Награда за задание от Петровский"}
     found, _ = run(over, src_overrides=src)
     assert ("quest_reward", "machine_translation_suspect") not in found
 
@@ -124,7 +124,7 @@ def test_check_with_review_drops_rejected_and_adds_review_findings(files):
 def test_length_extreme_growth_in_sentence_parts():
     src = {"timerAfterPrefix": "через:", "confirmBuyEnd": "кейс?"}
     over = {
-        "timerAfterPrefix": "кейін: режимін қосу және жалғастыру",  # junk appended after «:»
+        "timerAfterPrefix": "кейін: толығырақ білу үшін осы жерді басыңыз",  # junk appended after «:»
         "confirmBuyEnd": "кейсті сатып алғыңыз келетініне сенімдісіз бе?",  # predicate moved here: fine
     }
     found, _ = run(over, src_overrides=src)

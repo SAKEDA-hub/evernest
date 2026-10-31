@@ -161,7 +161,7 @@ def test_export_review_adds_rows_found_by_reviewer(tmp_path):
 
     out = tmp_path / "r.csv"
     f = Finding("a", "orthography", "low", "x", "y", "ev", None, 0.9)
-    extra = {"b": {"suggestion": "Неке", "source": "Брак", "target": "Заңға бағынушылық", "comment": "смысл"}}
+    extra = {"b": {"suggestion": "Неке", "source": "Брак", "target": "Тәртіп сақтау", "comment": "смысл"}}
     assert export_review([f], out, extra) == 2
     rows = {r["key"]: r for r in csv.DictReader(open(out, encoding="utf-8-sig"))}
     assert rows["b"]["issue_types"] == "machine_translation_suspect" and rows["b"]["suggestion"] == "Неке"

@@ -356,9 +356,9 @@ def _ref_hit(ctx: Context, key: str, tgt: str, src: str) -> str | None:
     if not hits:
         return None
     if ctx.looks_native(ctx.plain("tgt", key, " ")):
-        return None  # shared brand + native words ("MIDAS CREW ЖИНАҒЫ")
+        return None  # shared brand + native words ("ALPHA CLUB ЖИНАҒЫ")
     if len(hits) >= 2 and len(ctx.refs) >= 2:
-        # identical in every reference language: an untranslatable name ("SUMMER RUSH"), not a language slip
+        # identical in every reference language: an untranslatable name ("NEON CUP"), not a language slip
         return None
     if ctx.target_script == dominant_script(tgt):
         # same alphabet as the reference (uz vs en): names, units, "OK" coincide legitimately;
@@ -395,7 +395,7 @@ def _wrong_language(ctx: Context, key: str, src: str, tgt: str) -> tuple[str, fl
             if sum(1 for w in lw if w in ES_PT_WORDS) >= 2:
                 return "es/pt", 0.85, "испанский/португальский текст вместо казахского"
             if len(words) <= 3 and all(w[:1].isupper() for w in words):
-                return None  # event/brand name kept in Latin ("SUMMER RUSH", "Grand Arena")
+                return None  # event/brand name kept in Latin ("NEON CUP", "Grand Arena")
             return "lat", 0.55, "латиница вместо кириллицы при кириллическом исходнике"
         if not ctx.looks_native(text) and cyr >= 2:
             uz_hits = [w for w in lw if w in UZ_CYR_WORDS]
@@ -462,7 +462,7 @@ def check_mt_heuristics(ctx: Context):
             w for w in words
             if word_script(w) == "cyr" and len(w) >= 5 and not any(c in KK_SPECIFIC for c in w)
             and w.casefold() not in ctx.keep_tokens and RU_MORPH.search(w.casefold())
-            and not (w[:1].isupper() and w in src_words)  # proper name copied from source: «Вишневский»
+            and not (w[:1].isupper() and w in src_words)  # proper name copied from source: «Петровский»
         ]  # fmt: skip
         if ru_forms:
             reasons.append((f"русская словоформа без перевода: {', '.join(ru_forms[:3])}", 0.7))
