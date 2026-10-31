@@ -20,6 +20,8 @@ COLUMNS = [
     "evidence", "decision", "final_text", "reviewer", "comment",
 ]  # fmt: skip
 
+REVIEW_ADDED = "[добавлено ревью]"  # evidence prefix of rows added by the reviewer/LLM, not by the tool
+
 DECISIONS = {
     "accept": "accept", "принять": "accept", "a": "accept", "ok": "accept", "+": "accept",
     "edit": "edit", "правка": "edit", "исправить": "edit", "e": "edit",
@@ -72,7 +74,7 @@ def export_review(findings: list[Finding], path: str | Path, extra: dict[str, di
                 "source": x.get("source", ""),
                 "target": x.get("target", ""),
                 "suggestion": x["suggestion"],
-                "evidence": "[добавлено ревью] " + x.get("comment", ""),
+                "evidence": f"{REVIEW_ADDED} " + x.get("comment", ""),
                 "decision": "",
                 "final_text": "",
                 "reviewer": "",
@@ -179,8 +181,10 @@ def merge_review(
         for r in rs:
             if r.decision == "keep" or not r.text:
                 continue
+            if r.evidence and not r.evidence.startswith(REVIEW_ADDED):
+                continue  # a tool finding from an earlier run (e.g. with --ref) that this run did not reproduce
             types = [t for t in r.issue_types if t in ISSUE_TYPES] or ["machine_translation_suspect"]
-            ev = r.evidence.removeprefix("[добавлено ревью]").strip() or r.comment or "найдено при ревью"
+            ev = r.evidence.removeprefix(REVIEW_ADDED).strip() or r.comment or "найдено при ревью"
             for t in types:
                 out.append(
                     Finding(

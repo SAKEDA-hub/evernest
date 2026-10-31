@@ -139,3 +139,16 @@ def test_translit_dotted_capital_i():
     # 2021 alphabet: И/Й -> İ/i, І -> I/ı; upper И must not collapse into upper І
     assert translit_kk("Иә, Ізде") == "İä, Izde"
     assert translit_kk("ШЫҒУ") == "ŞYĞU"
+
+
+def test_stale_tool_rows_are_not_counted_as_review_findings(files):
+    review = files["dir"] / "review.csv"
+    _review_csv(
+        review,
+        [{"key": "error_input", "issue_types": "wrong_language", "suggestion": "Енгізу қатесі",
+          "evidence": "[wrong_language] перевод совпадает со строкой uz", "decision": "accept", "reviewer": "А"}],
+    )  # fmt: skip
+    out = files["dir"] / "r.json"
+    main(["check", "--source", str(files["ru"]), "--target", str(files["kk"]), "--review", str(review), "--out", str(out), "--html", "-"])
+    rep = json.loads(out.read_text(encoding="utf-8"))
+    assert rep["summary"]["review"]["added_by_review"] == 0
